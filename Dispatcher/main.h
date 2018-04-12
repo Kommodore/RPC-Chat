@@ -1,0 +1,6 @@
+#ifndef DISPATCHER_MAIN_H
+#define DISPATCHER_MAIN_H
+
+struct
+
+#endif //DISPATCHER_MAIN_H
