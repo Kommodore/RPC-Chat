@@ -16,7 +16,7 @@ void getInput(char* input){
 int main() {
     CLIENT *cl;
     char option[MESLEN];
-    char server[] = "localhost";
+    char server[] = "192.168.56.101";
     void* input_arguments = NULL;
 
     /*
@@ -60,7 +60,7 @@ int main() {
             publish_1(message, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "set_channel") == 0){
-            char channel[TOPLEN];
+            topic channel[TOPLEN];
             printf("Enter channel name: ");
             getInput(channel);
             set_channel_1(channel, cl);
