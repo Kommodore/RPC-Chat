@@ -3,8 +3,10 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <rpc/svc.h>
 
 #include "pub_sub.h"
+#include "pub_sub_deliv.h"
 #include "return_codes.h"
 
 typedef struct Subscriber {
@@ -14,6 +16,7 @@ typedef struct Subscriber {
 } Subscriber;
 
 Subscriber *subscriber_list = NULL;
+struct timeval TIMEOUT = {0, 0}; /* used by one_way_clnt.c with clnt_call() timeouts */
 
 /**
  * Finde einen Subscriber in der Subscriber Liste.
@@ -151,7 +154,7 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
 }
 
 /**
- *
+ * Send a message to all client subscribed to that topic.
  *
  * @param message
  * @param req
@@ -159,6 +162,40 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
  */
 short * publish_1_svc(message *message, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
+    CLIENT *cl;
+
+    char topic[TOPLEN];
+    strcmp(topic, find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->topic);
+
+    Subscriber *element = subscriber_list;
+
+    while(element != NULL){
+        if(strcmp(element->topic, topic) == 0){
+            /*
+             * Erzeugung eines Client Handles.
+             * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
+             * damit der Aufruf in jedem Fall den Server erreicht.
+             */
+            if ((cl = clnt_create(element->client_addr, PUBSUBCLTPROG, PUBSUBCLTVERS, "tcp")) == NULL) {
+                clnt_pcreateerror(element->client_addr);
+                exit(1);
+            }
+            /*
+             * Fuer alle Argumente der Kommandozeile wird die Server-Funktion
+             * aufgerufen. Der Timeout wird auf 0 gesetzt, auf die Antwort
+             * muss (und sollte) nicht gewartet werden.
+             */
+            TIMEOUT.tv_sec = TIMEOUT.tv_usec = 0;
+            if (clnt_control(cl, CLSET_TIMEOUT, (char*) &TIMEOUT) == FALSE) {
+                fprintf (stderr, "can't zero timeout\n");
+                exit(1);
+            }
+
+            deliver_1(message, cl);
+            clnt_perror(cl, element->client_addr); /* ignore the time-out errors */
+        }
+        element = element->next;
+    }
 
     return &return_code;
 }
