@@ -11,7 +11,7 @@
 
 typedef struct Subscriber {
     char client_addr[INET6_ADDRSTRLEN];
-    char topic[TOPLEN];
+    char *topic;
     struct Subscriber *next;
 } Subscriber;
 
@@ -53,8 +53,8 @@ short * set_channel_1_svc(topic *topic, struct svc_req *req){
     strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
     if((client = find_subscriber(client_addr)) != NULL){
-        strcpy(client->topic, *topic);
-        printf("Topic set to %s for %s\n", (char*)topic, client_addr);
+        client->topic = strdup(*topic);
+        printf("Topic set to %s for %s\n", client->topic, client_addr);
     } else {
         printf("Can't set topic. Subscriber not found.\n");
         return_code = CANNOT_SET_TOPIC;
@@ -84,9 +84,9 @@ short * subscribe_1_svc(void *argp, struct svc_req *req){
         if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
             // Struct erstellen
             memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
-            memset(new_subscriber->topic, '\0', TOPLEN);
             strcpy(new_subscriber->client_addr, client_addr);
             new_subscriber->next = NULL;
+            new_subscriber->topic = NULL;
 
             // Ans Ende packen
             if(subscriber_list ==  NULL) {
@@ -162,15 +162,20 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
  */
 short * publish_1_svc(message *message, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
+    char* tempMessage;
     CLIENT *cl;
+    tempMessage = strdup(*message);
 
     char topic[TOPLEN];
-    strcmp(topic, find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->topic);
+    char* cl_topic = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->topic;
+    if(cl_topic != NULL){
+        strcpy(topic, cl_topic);
+    }
 
     Subscriber *element = subscriber_list;
 
     while(element != NULL){
-        if(strcmp(element->topic, topic) == 0){
+        if(element->topic == NULL || topic == NULL || strcmp(element->topic, topic) == 0){ //TODO: Nachrichten aus Default Channel werden nicht empofangen
             /*
              * Erzeugung eines Client Handles.
              * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
@@ -191,7 +196,7 @@ short * publish_1_svc(message *message, struct svc_req *req){
                 exit(1);
             }
 
-            deliver_1(message, cl);
+            deliver_1(&tempMessage, cl);
             clnt_perror(cl, element->client_addr); /* ignore the time-out errors */
         }
         element = element->next;

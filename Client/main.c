@@ -6,11 +6,12 @@
 #include "pub_sub.h"
 
 extern int errno;
-struct timeval TIMEOUT = {0, 0}; /* used by one_way_clnt.c with clnt_call() timeouts */
+struct timeval TIMEOUT = {0, 25}; /* used by one_way_clnt.c with clnt_call() timeouts */
 
 void getInput(char* input){
     printf("> ");
     scanf("%s", input);
+    fflush(stdin);
 }
 
 int main() {
@@ -47,11 +48,11 @@ int main() {
         getInput(option);
         if(strcmp(option, "subscribe") == 0){
             printf("Subscribing to server.\n");
-            subscribe_1(&input_arguments, cl);
+            subscribe_1(input_arguments, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "unsubscribe") == 0){
             printf("Unsubscribing from server.\n");
-            unsubscribe_1(&input_arguments, cl);
+            unsubscribe_1(input_arguments, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "publish") == 0){
             char tempMessage[MESLEN];
@@ -60,6 +61,7 @@ int main() {
             printf("Send message: ");
             getInput(tempMessage);
             message1 = strdup(tempMessage);
+            printf("Message: %s", message1);
             publish_1(&message1, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "set_channel") == 0){
@@ -73,7 +75,7 @@ int main() {
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "exit") == 0) {
             printf("Closing client...\n");
-            unsubscribe_1(&input_arguments, cl);
+            unsubscribe_1(input_arguments, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
             return 0;
         } else {
