@@ -54,16 +54,22 @@ int main() {
             unsubscribe_1(&input_arguments, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "publish") == 0){
-            char message[MESLEN];
+            char tempMessage[MESLEN];
+            message message1;
+
             printf("Send message: ");
-            getInput(message);
-            publish_1(message, cl);
+            getInput(tempMessage);
+            message1 = strdup(tempMessage);
+            publish_1(&message1, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "set_channel") == 0){
-            topic channel[TOPLEN];
+            char tempChannel[TOPLEN];
+            topic topic1;
+
             printf("Enter channel name: ");
-            getInput(channel);
-            set_channel_1(channel, cl);
+            getInput(tempChannel);
+            topic1 = strdup(tempChannel);
+            set_channel_1(&topic1, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "exit") == 0) {
             printf("Closing client...\n");
