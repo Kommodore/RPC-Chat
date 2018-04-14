@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include "pub_sub.h"
+#include "return_codes.h"
 
 extern int errno;
 struct timeval TIMEOUT = {0, 25}; /* used by one_way_clnt.c with clnt_call() timeouts */
@@ -19,6 +20,7 @@ int main() {
     char option[MESLEN];
     char server[] = "192.168.56.101";
     void* input_arguments = NULL;
+    short *result = NULL;
 
     /*
      * Erzeugung eines Client Handles.
@@ -48,11 +50,16 @@ int main() {
         getInput(option);
         if(strcmp(option, "subscribe") == 0){
             printf("Subscribing to server.\n");
-            subscribe_1(input_arguments, cl);
+            result = subscribe_1(input_arguments, cl);
+            if(result == NULL){
+                printf("Result ist null");
+            } else {
+                printf("Result ist nicht null und hat den Wert %hi", *result);
+            }
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "unsubscribe") == 0){
             printf("Unsubscribing from server.\n");
-            unsubscribe_1(input_arguments, cl);
+            result = unsubscribe_1(input_arguments, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "publish") == 0){
             char tempMessage[MESLEN];
@@ -61,8 +68,7 @@ int main() {
             printf("Send message: ");
             getInput(tempMessage);
             message1 = strdup(tempMessage);
-            printf("Message: %s", message1);
-            publish_1(&message1, cl);
+            result = publish_1(&message1, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "set_channel") == 0){
             char tempChannel[TOPLEN];
@@ -71,7 +77,7 @@ int main() {
             printf("Enter channel name: ");
             getInput(tempChannel);
             topic1 = strdup(tempChannel);
-            set_channel_1(&topic1, cl);
+            result = set_channel_1(&topic1, cl);
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "exit") == 0) {
             printf("Closing client...\n");
@@ -80,6 +86,10 @@ int main() {
             return 0;
         } else {
             printf("Aktion nicht gefunden.\n");
+        }
+
+        if(result != NULL && *result != 0){
+            printf("Error while performing request: %s", PUB_SUB_RET_CODE[*result]);
         }
     }
 }

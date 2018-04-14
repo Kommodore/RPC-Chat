@@ -164,18 +164,24 @@ short * publish_1_svc(message *message, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
     char* tempMessage;
     CLIENT *cl;
-    tempMessage = strdup(*message);
+
 
     char topic[TOPLEN];
     char* cl_topic = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->topic;
     if(cl_topic != NULL){
         strcpy(topic, cl_topic);
+        tempMessage = malloc(sizeof(char)*POSTMESLEN);
+        sprintf(tempMessage, "%s#%s", cl_topic, *message);
+    } else {
+        memset(topic, '\0', TOPLEN);
+        tempMessage = malloc(sizeof(char)*(strlen(*message)+7));
+        sprintf(tempMessage, "GLOBAL#%s", *message);
     }
 
     Subscriber *element = subscriber_list;
 
     while(element != NULL){
-        if(element->topic == NULL || topic == NULL || strcmp(element->topic, topic) == 0){ //TODO: Nachrichten aus Default Channel werden nicht empofangen
+        if(element->topic == NULL || strlen(topic) == 0 || strcmp(element->topic, topic) == 0){
             /*
              * Erzeugung eines Client Handles.
              * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
