@@ -20,7 +20,7 @@ int main() {
     char option[MESLEN];
     char server[] = "192.168.56.101";
     void* input_arguments = NULL;
-    short *result = NULL;
+    short *result;
 
     /*
      * Erzeugung eines Client Handles.

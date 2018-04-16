@@ -13,6 +13,7 @@ typedef struct Subscriber {
     char client_addr[INET6_ADDRSTRLEN];
     char *topic;
     struct Subscriber *next;
+    param auth_data;
 } Subscriber;
 
 Subscriber *subscriber_list = NULL;
@@ -58,6 +59,47 @@ short * set_channel_1_svc(topic *topic, struct svc_req *req){
     } else {
         printf("Can't set topic. Subscriber not found.\n");
         return_code = CANNOT_SET_TOPIC;
+    }
+
+    return &return_code;
+}
+
+short * validate_1_svc(param *argp, struct svc_req * req){
+    static short return_code = OK; // Static damit nicht abgeräumt
+    char client_addr[INET6_ADDRSTRLEN];
+    clock_t nonce = clock();
+    Subscriber* new_subscriber = malloc(sizeof(Subscriber));
+
+    strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
+
+    if(new_subscriber == NULL){
+        return_code = CANNOT_REGISTER;
+        printf("Couldn't allocate memory for new subscriber.\n");
+    } else {
+        if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
+            // Struct erstellen
+            memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
+            strcpy(new_subscriber->client_addr, client_addr);
+            new_subscriber->next = NULL;
+            new_subscriber->topic = NULL;
+
+            // Ans Ende packen
+            if(subscriber_list ==  NULL) {
+                subscriber_list = new_subscriber;
+                printf("Subscribed %s\n", client_addr);
+            } else {
+                Subscriber* element = subscriber_list;
+                while(element->next != NULL){
+                    element = element->next;
+                }
+                element->next = new_subscriber;
+                printf("Subscribed %s\n", client_addr);
+            }
+        } else {
+            return_code = CLIENT_ALREADY_REGISTERED;
+            printf("Subscriber already existing\n");
+            free(new_subscriber);
+        }
     }
 
     return &return_code;
