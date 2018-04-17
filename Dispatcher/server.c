@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <rpc/svc.h>
+#include <time.h>
 
 #include "pub_sub.h"
 #include "pub_sub_deliv.h"
 #include "return_codes.h"
-#include "sha_hashing.c"
 
 typedef struct Subscriber {
     char client_addr[INET6_ADDRSTRLEN];
@@ -66,9 +66,9 @@ short * set_channel_1_svc(topic *topic, struct svc_req *req){
 }
 
 sessionid * get_session_1_svc(user *argp, struct svc_req * req){
-    if(GLOB_hash_digest_initialized != TRUE){
+    /*if(GLOB_hash_digest_initialized != TRUE){
         init_hash_digest();
-    }
+    }*/
 
     static sessionid session_id;
     session_id = clock();
@@ -77,7 +77,7 @@ sessionid * get_session_1_svc(user *argp, struct svc_req * req){
 }
 
 short * invalidate_1_svc(sessionid *argp, struct svc_req *req){
-    static int return_code = OK;
+    static short return_code = OK;
 
     return &return_code;
 }
