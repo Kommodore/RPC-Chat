@@ -7,7 +7,7 @@
 #include "return_codes.h"
 
 extern int errno;
-struct timeval TIMEOUT = {0, 25}; /* used by one_way_clnt.c with clnt_call() timeouts */
+struct timeval TIMEOUT = {25, 0}; /* used by one_way_clnt.c with clnt_call() timeouts */
 
 void getInput(char* input){
     printf("> ");
@@ -36,7 +36,6 @@ int main() {
      * aufgerufen. Der Timeout wird auf 0 gesetzt, auf die Antwort
      * muss (und sollte) nicht gewartet werden.
      */
-    TIMEOUT.tv_sec = TIMEOUT.tv_usec = 0;
     if (clnt_control(cl, CLSET_TIMEOUT, (char*) &TIMEOUT) == FALSE) {
         fprintf (stderr, "can't zero timeout\n");
         exit(1);
@@ -51,15 +50,20 @@ int main() {
         if(strcmp(option, "subscribe") == 0){
             printf("Subscribing to server.\n");
             result = subscribe_1(input_arguments, cl);
-            if(result == NULL){
-                printf("Result ist null");
+            if(*result == OK){
+                printf("Successfully subscribed.\n");
             } else {
-                printf("Result ist nicht null und hat den Wert %hi", *result);
+                printf("Could not subscribe: %s\n", PUB_SUB_RET_CODE[*result]);
             }
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "unsubscribe") == 0){
             printf("Unsubscribing from server.\n");
             result = unsubscribe_1(input_arguments, cl);
+            if(*result == OK){
+                printf("Successfully unsubscribed.\n");
+            } else {
+                printf("Could not unsubscribe: %s\n", PUB_SUB_RET_CODE[*result]);
+            }
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "publish") == 0){
             char tempMessage[MESLEN];
@@ -69,6 +73,11 @@ int main() {
             getInput(tempMessage);
             message1 = strdup(tempMessage);
             result = publish_1(&message1, cl);
+            if(*result == OK){
+                printf("Message sent.\n");
+            } else {
+                printf("Message not sent: %s\n", PUB_SUB_RET_CODE[*result]);
+            }
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "set_channel") == 0){
             char tempChannel[TOPLEN];
@@ -78,6 +87,11 @@ int main() {
             getInput(tempChannel);
             topic1 = strdup(tempChannel);
             result = set_channel_1(&topic1, cl);
+            if(*result == OK){
+                printf("Entered channel.\n");
+            } else {
+                printf("Channel not entered: %s", PUB_SUB_RET_CODE[*result]);
+            }
             clnt_perror(cl, server); /* ignore the time-out errors */
         } else if(strcmp(option, "exit") == 0) {
             printf("Closing client...\n");
@@ -86,10 +100,6 @@ int main() {
             return 0;
         } else {
             printf("Aktion nicht gefunden.\n");
-        }
-
-        if(result != NULL && *result != 0){
-            printf("Error while performing request: %s", PUB_SUB_RET_CODE[*result]);
         }
     }
 }

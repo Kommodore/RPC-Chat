@@ -119,28 +119,28 @@ char* hash_user_pwd(char* user, char* pwd) {
     return hash_sha(str);
 }
 
-/*
- * Main Funktion: Einlesen von Hash-Digest, 
- * und Generierung eines Hash-Wertes aus 
- * Nutzername und Pwd.
- */
-int main(int argc, char** argv) {
-    /* Initialisierung des Hash-Digest */
-    init_hash_digest();
-    /* Generierung eines Hash-Wertes */
-    char user [USERLEN];
-    user[0] = '\0';
-    char pwd [PWDLEN];
-    pwd[0] = '\0';
-    printf("enter user name (%d)> ", USERLEN);
-    s_getline(user, USERLEN, stdin);
-    printf("enter pwd (%d)> ", PWDLEN);
-    fflush(stdout);
-    s_getline(pwd, PWDLEN, stdin);
-    char* hash_val = hash_user_pwd(user, pwd);
-    printf("%s %s\n", user, hash_val);
-    free(hash_val);
-    /* ... koennte anschließend in Hash-Digest eingefuegt werden ... */
-    return EXIT_SUCCESS;
-}
+///*
+// * Main Funktion: Einlesen von Hash-Digest,
+// * und Generierung eines Hash-Wertes aus
+// * Nutzername und Pwd.
+// */
+//int main(int argc, char** argv) {
+//    /* Initialisierung des Hash-Digest */
+//    init_hash_digest();
+//    /* Generierung eines Hash-Wertes */
+//    char user [USERLEN];
+//    user[0] = '\0';
+//    char pwd [PWDLEN];
+//    pwd[0] = '\0';
+//    printf("enter user name (%d)> ", USERLEN);
+//    s_getline(user, USERLEN, stdin);
+//    printf("enter pwd (%d)> ", PWDLEN);
+//    fflush(stdout);
+//    s_getline(pwd, PWDLEN, stdin);
+//    char* hash_val = hash_user_pwd(user, pwd);
+//    printf("%s %s\n", user, hash_val);
+//    free(hash_val);
+//    /* ... koennte anschließend in Hash-Digest eingefuegt werden ... */
+//    return EXIT_SUCCESS;
+//}
 

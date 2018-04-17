@@ -9,6 +9,7 @@
 #include "pub_sub.h"
 #include "pub_sub_deliv.h"
 #include "return_codes.h"
+#include "sha_hashing.c"
 
 typedef struct Subscriber {
     char client_addr[INET6_ADDRSTRLEN];
@@ -66,9 +67,9 @@ short * set_channel_1_svc(topic *topic, struct svc_req *req){
 }
 
 sessionid * get_session_1_svc(user *argp, struct svc_req * req){
-    /*if(GLOB_hash_digest_initialized != TRUE){
+    if(GLOB_hash_digest_initialized == FALSE){
         init_hash_digest();
-    }*/
+    }
 
     static sessionid session_id;
     session_id = clock();
