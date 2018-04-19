@@ -9,13 +9,15 @@
 #include "pub_sub.h"
 #include "pub_sub_deliv.h"
 #include "return_codes.h"
-#include "sha_hashing.c"
+#include "sha_hashing.h"
 
 typedef struct Subscriber {
     char client_addr[INET6_ADDRSTRLEN];
     char *topic;
     struct Subscriber *next;
-    param auth_data;
+    hashstring credentials;
+    sessionid session_id;
+    short authenticated;
 } Subscriber;
 
 Subscriber *subscriber_list = NULL;
@@ -48,16 +50,22 @@ Subscriber* find_subscriber(char* client_addr){
  * @param svc_req *req Enthält Infos zum Client. Wir brauchen die IP.
  * @return Ein Code definiert in return_codes.h.
  */
-short * set_channel_1_svc(topic *topic, struct svc_req *req){
+short * set_channel_1_svc(param *param, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
     char client_addr[INET6_ADDRSTRLEN];
     Subscriber *client;
+    topic topic = param->arg.argument_u.t;
 
     strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
     if((client = find_subscriber(client_addr)) != NULL){
-        client->topic = strdup(*topic);
-        printf("Topic set to %s for %s\n", client->topic, client_addr);
+        if(client->authenticated == 1 && validate_1_svc(param, req) == OK){
+            client->topic = strdup(topic);
+            printf("Topic set to %s for %s\n", client->topic, client_addr);
+        } else {
+            printf("User not authenticated");
+            return_code = AUTH_FAILURE;
+        }
     } else {
         printf("Can't set topic. Subscriber not found.\n");
         return_code = CANNOT_SET_TOPIC;
@@ -67,119 +75,62 @@ short * set_channel_1_svc(topic *topic, struct svc_req *req){
 }
 
 sessionid * get_session_1_svc(user *argp, struct svc_req * req){
+    static sessionid session_id;
     if(GLOB_hash_digest_initialized == FALSE){
         init_hash_digest();
     }
 
-    static sessionid session_id;
-    session_id = clock();
+    for(int i = 0; i < MAX_HASH_DIGEST_LENGTH; i++){
+        if(strcmp(GLOB_hash_digest[i].user, *argp) == 0){
+            char client_addr[INET6_ADDRSTRLEN];
+            Subscriber* new_subscriber = malloc(sizeof(Subscriber));
 
+            strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
+
+            if(new_subscriber == NULL){
+                session_id = CANNOT_REGISTER;
+                printf("Couldn't allocate memory for new subscriber.\n");
+            } else {
+                if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
+                    // Struct erstellen
+                    memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
+                    strcpy(new_subscriber->client_addr, client_addr);
+                    new_subscriber->next = NULL;
+                    new_subscriber->topic = NULL;
+                    new_subscriber->authenticated = 0;
+                    new_subscriber->session_id = clock();
+                    strcpy(new_subscriber->credentials, GLOB_hash_digest[i].hash);
+
+                    // Ans Ende packen
+                    if(subscriber_list ==  NULL) {
+                        subscriber_list = new_subscriber;
+                        printf("Subscribed %s\n", client_addr);
+                    } else {
+                        Subscriber* element = subscriber_list;
+                        while(element->next != NULL){
+                            element = element->next;
+                        }
+                        element->next = new_subscriber;
+                        printf("Session created for %s with id %d\n", client_addr, new_subscriber->session_id);
+                        session_id = new_subscriber->session_id;
+                    }
+                } else {
+                    session_id = CLIENT_ALREADY_REGISTERED;
+                    printf("Session already open\n");
+                    free(new_subscriber);
+                }
+            }
+
+            return &session_id;
+        }
+    }
+
+    session_id = UNKNOWN_USER;
     return &session_id;
 }
 
 short * invalidate_1_svc(sessionid *argp, struct svc_req *req){
     static short return_code = OK;
-
-    return &return_code;
-}
-
-short * validate_1_svc(param *argp, struct svc_req * req){
-    static short return_code = OK; // Static damit nicht abgeräumt
-    char client_addr[INET6_ADDRSTRLEN];
-    clock_t nonce = clock();
-    Subscriber* new_subscriber = malloc(sizeof(Subscriber));
-
-    strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
-
-    if(new_subscriber == NULL){
-        return_code = CANNOT_REGISTER;
-        printf("Couldn't allocate memory for new subscriber.\n");
-    } else {
-        if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
-            // Struct erstellen
-            memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
-            strcpy(new_subscriber->client_addr, client_addr);
-            new_subscriber->next = NULL;
-            new_subscriber->topic = NULL;
-
-            // Ans Ende packen
-            if(subscriber_list ==  NULL) {
-                subscriber_list = new_subscriber;
-                printf("Subscribed %s\n", client_addr);
-            } else {
-                Subscriber* element = subscriber_list;
-                while(element->next != NULL){
-                    element = element->next;
-                }
-                element->next = new_subscriber;
-                printf("Subscribed %s\n", client_addr);
-            }
-        } else {
-            return_code = CLIENT_ALREADY_REGISTERED;
-            printf("Subscriber already existing\n");
-            free(new_subscriber);
-        }
-    }
-
-    return &return_code;
-}
-
-/**
- * Einen neuen Subscriber erstellen und ans Ende der Subscriber Liste packen.
- *
- * @param void *argp Enthält NULL da keine Daten übergeben.
- * @param svc_req *req Enthält Infos zum Client. Wir brauchen die IP.
- * @return short* Ein Code definiert in return_codes.h.
- */
-short * subscribe_1_svc(void *argp, struct svc_req *req){
-    static short return_code = OK; // Static damit nicht abgeräumt
-    char client_addr[INET6_ADDRSTRLEN];
-    Subscriber* new_subscriber = malloc(sizeof(Subscriber));
-
-    strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
-
-    if(new_subscriber == NULL){
-        return_code = CANNOT_REGISTER;
-        printf("Couldn't allocate memory for new subscriber.\n");
-    } else {
-        if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
-            // Struct erstellen
-            memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
-            strcpy(new_subscriber->client_addr, client_addr);
-            new_subscriber->next = NULL;
-            new_subscriber->topic = NULL;
-
-            // Ans Ende packen
-            if(subscriber_list ==  NULL) {
-                subscriber_list = new_subscriber;
-                printf("Subscribed %s\n", client_addr);
-            } else {
-                Subscriber* element = subscriber_list;
-                while(element->next != NULL){
-                    element = element->next;
-                }
-                element->next = new_subscriber;
-                printf("Subscribed %s\n", client_addr);
-            }
-        } else {
-            return_code = CLIENT_ALREADY_REGISTERED;
-            printf("Subscriber already existing\n");
-            free(new_subscriber);
-        }
-    }
-
-    return &return_code;
-}
-
-/**
- * Einen Subscriber aus der Liste löschen.
- *
- * @param void *argp Enthält NULL da keine Daten übergeben.
- * @param svc_req *req Enthält Infos zum Client. Wir brauchen die IP.
- * @return short* Ein Code definiert in return_codes.h.
- */
-short * unsubscribe_1_svc(void *argp, struct svc_req *req){
-    static short return_code = OK; // Static damit nicht abgeräumt
     char client_addr[INET6_ADDRSTRLEN];
 
     strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
@@ -190,7 +141,7 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
     } else {
         Subscriber *element = subscriber_list;
 
-        if(strcmp(element->client_addr, client_addr) == 0){
+        if(strcmp(element->client_addr, client_addr) == 0 && element->session_id == *argp){
             subscriber_list = element->next;
             free(element);
             printf("Client unregistered.\n");
@@ -214,6 +165,54 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
     return &return_code;
 }
 
+short * validate_1_svc(param *argp, struct svc_req * req){
+    static short return_code = OK; // Static damit nicht abgeräumt
+    char hash[MAX_HASH_DIGEST_LENGTH];
+    Subscriber* curr_subscriber = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
+
+    sprintf(hash, "%s;%s;%s", curr_subscriber->session_id, argp->arg.argument_u.t, curr_subscriber->credentials);
+
+    if(strcmp(hash_sha(hash), argp->hash) != 0){
+        return_code = AUTH_FAILURE;
+    }
+
+    return &return_code;
+}
+
+/**
+ * Einen neuen Subscriber erstellen und ans Ende der Subscriber Liste packen.
+ *
+ * @param void *argp Enthält NULL da keine Daten übergeben.
+ * @param svc_req *req Enthält Infos zum Client. Wir brauchen die IP.
+ * @return short* Ein Code definiert in return_codes.h.
+ */
+short * subscribe_1_svc(param *param, struct svc_req *req){
+    static short return_code = OK; // Static damit nicht abgeräumt
+
+    if(validate_1_svc(param, req) == OK){
+        find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->authenticated = 1;
+    }
+
+    return &return_code;
+}
+
+/**
+ * Einen Subscriber aus der Liste löschen.
+ *
+ * @param void *argp Enthält NULL da keine Daten übergeben.
+ * @param svc_req *req Enthält Infos zum Client. Wir brauchen die IP.
+ * @return short* Ein Code definiert in return_codes.h.
+ */
+short * unsubscribe_1_svc(param *param, struct svc_req *req){
+    static short return_code = OK; // Static damit nicht abgeräumt
+
+    if(validate_1_svc(param, req) == OK){
+        find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->authenticated = 0;
+    }
+
+    return &return_code;
+}
+
 /**
  * Send a message to all client subscribed to that topic.
  *
@@ -221,52 +220,56 @@ short * unsubscribe_1_svc(void *argp, struct svc_req *req){
  * @param req
  * @return
  */
-short * publish_1_svc(message *message, struct svc_req *req){
+short * publish_1_svc(param *param, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
     char* tempMessage;
     CLIENT *cl;
+    Subscriber* caller = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
-
-    char topic[TOPLEN];
-    char* cl_topic = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->topic;
-    if(cl_topic != NULL){
-        strcpy(topic, cl_topic);
-        tempMessage = malloc(sizeof(char)*POSTMESLEN);
-        sprintf(tempMessage, "%s#%s", cl_topic, *message);
-    } else {
-        memset(topic, '\0', TOPLEN);
-        tempMessage = malloc(sizeof(char)*(strlen(*message)+7));
-        sprintf(tempMessage, "GLOBAL#%s", *message);
-    }
-
-    Subscriber *element = subscriber_list;
-
-    while(element != NULL){
-        if(element->topic == NULL || strlen(topic) == 0 || strcmp(element->topic, topic) == 0){
-            /*
-             * Erzeugung eines Client Handles.
-             * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
-             * damit der Aufruf in jedem Fall den Server erreicht.
-             */
-            if ((cl = clnt_create(element->client_addr, PUBSUBCLTPROG, PUBSUBCLTVERS, "tcp")) == NULL) {
-                clnt_pcreateerror(element->client_addr);
-                exit(1);
-            }
-            /*
-             * Fuer alle Argumente der Kommandozeile wird die Server-Funktion
-             * aufgerufen. Der Timeout wird auf 0 gesetzt, auf die Antwort
-             * muss (und sollte) nicht gewartet werden.
-             */
-            TIMEOUT.tv_sec = TIMEOUT.tv_usec = 0;
-            if (clnt_control(cl, CLSET_TIMEOUT, (char*) &TIMEOUT) == FALSE) {
-                fprintf (stderr, "can't zero timeout\n");
-                exit(1);
-            }
-
-            deliver_1(&tempMessage, cl);
-            clnt_perror(cl, element->client_addr); /* ignore the time-out errors */
+    if(caller->authenticated == 1 && validate_1_svc(param, req) == OK){
+        char topic[TOPLEN];
+        char* cl_topic = caller->topic;
+        if(cl_topic != NULL){
+            strcpy(topic, cl_topic);
+            tempMessage = malloc(sizeof(char)*POSTMESLEN);
+            sprintf(tempMessage, "%s#%s", cl_topic, param->arg.argument_u.m);
+        } else {
+            memset(topic, '\0', TOPLEN);
+            tempMessage = malloc(sizeof(char)*(strlen(param->arg.argument_u.m)+7));
+            sprintf(tempMessage, "GLOBAL#%s", param->arg.argument_u.m);
         }
-        element = element->next;
+
+        Subscriber *element = subscriber_list;
+
+        while(element != NULL){
+            if((element->authenticated == 1) && (element->topic == NULL || strlen(topic) == 0 || strcmp(element->topic, topic) == 0)){
+                /*
+                 * Erzeugung eines Client Handles.
+                 * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
+                 * damit der Aufruf in jedem Fall den Server erreicht.
+                 */
+                if ((cl = clnt_create(element->client_addr, PUBSUBCLTPROG, PUBSUBCLTVERS, "tcp")) == NULL) {
+                    clnt_pcreateerror(element->client_addr);
+                    exit(1);
+                }
+                /*
+                 * Fuer alle Argumente der Kommandozeile wird die Server-Funktion
+                 * aufgerufen. Der Timeout wird auf 0 gesetzt, auf die Antwort
+                 * muss (und sollte) nicht gewartet werden.
+                 */
+                if (clnt_control(cl, CLSET_TIMEOUT, (char*) &TIMEOUT) == FALSE) {
+                    fprintf (stderr, "can't zero timeout\n");
+                    exit(1);
+                }
+
+                deliver_1(&tempMessage, cl);
+                clnt_perror(cl, element->client_addr); /* ignore the time-out errors */
+            }
+            element = element->next;
+        }
+    } else {
+        printf("User not authenticated\n");
+        return_code = AUTH_FAILURE;
     }
 
     return &return_code;

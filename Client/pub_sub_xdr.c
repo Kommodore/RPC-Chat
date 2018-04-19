@@ -26,3 +26,74 @@ xdr_message(xdrs, objp)
 		return (FALSE);
 	return (TRUE);
 }
+
+bool_t
+xdr_hashstring(xdrs, objp)
+	XDR *xdrs;
+	hashstring *objp;
+{
+
+	if (!xdr_string(xdrs, objp, HASHLEN))
+		return (FALSE);
+	return (TRUE);
+}
+
+bool_t
+xdr_user(xdrs, objp)
+	XDR *xdrs;
+	user *objp;
+{
+
+	if (!xdr_string(xdrs, objp, USERLEN))
+		return (FALSE);
+	return (TRUE);
+}
+
+bool_t
+xdr_sessionid(xdrs, objp)
+	XDR *xdrs;
+	sessionid *objp;
+{
+
+	if (!xdr_int(xdrs, objp))
+		return (FALSE);
+	return (TRUE);
+}
+
+bool_t
+xdr_argument(xdrs, objp)
+	XDR *xdrs;
+	argument *objp;
+{
+
+	if (!xdr_int(xdrs, &objp->topic_or_message))
+		return (FALSE);
+	switch (objp->topic_or_message) {
+	case 0:
+		if (!xdr_topic(xdrs, &objp->argument_u.t))
+			return (FALSE);
+		break;
+	case 1:
+		if (!xdr_message(xdrs, &objp->argument_u.m))
+			return (FALSE);
+		break;
+	default:
+		break;
+	}
+	return (TRUE);
+}
+
+bool_t
+xdr_param(xdrs, objp)
+	XDR *xdrs;
+	param *objp;
+{
+
+	if (!xdr_sessionid(xdrs, &objp->id))
+		return (FALSE);
+	if (!xdr_argument(xdrs, &objp->arg))
+		return (FALSE);
+	if (!xdr_hashstring(xdrs, &objp->hash))
+		return (FALSE);
+	return (TRUE);
+}

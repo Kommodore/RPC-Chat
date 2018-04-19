@@ -32,37 +32,128 @@ extern  bool_t xdr_message(XDR *, message*);
 bool_t xdr_message();
 #endif /* Old Style C */
 
+#define USERLEN 12
+#define HASHLEN 96
+
+typedef char *hashstring;
+#ifdef __cplusplus
+extern "C" bool_t xdr_hashstring(XDR *, hashstring*);
+#elif __STDC__
+extern  bool_t xdr_hashstring(XDR *, hashstring*);
+#else /* Old Style C */
+bool_t xdr_hashstring();
+#endif /* Old Style C */
+
+
+typedef char *user;
+#ifdef __cplusplus
+extern "C" bool_t xdr_user(XDR *, user*);
+#elif __STDC__
+extern  bool_t xdr_user(XDR *, user*);
+#else /* Old Style C */
+bool_t xdr_user();
+#endif /* Old Style C */
+
+
+typedef int sessionid;
+#ifdef __cplusplus
+extern "C" bool_t xdr_sessionid(XDR *, sessionid*);
+#elif __STDC__
+extern  bool_t xdr_sessionid(XDR *, sessionid*);
+#else /* Old Style C */
+bool_t xdr_sessionid();
+#endif /* Old Style C */
+
+
+struct argument {
+	int topic_or_message;
+	union {
+		topic t;
+		message m;
+	} argument_u;
+};
+typedef struct argument argument;
+#ifdef __cplusplus
+extern "C" bool_t xdr_argument(XDR *, argument*);
+#elif __STDC__
+extern  bool_t xdr_argument(XDR *, argument*);
+#else /* Old Style C */
+bool_t xdr_argument();
+#endif /* Old Style C */
+
+
+struct param {
+	sessionid id;
+	argument arg;
+	hashstring hash;
+};
+typedef struct param param;
+#ifdef __cplusplus
+extern "C" bool_t xdr_param(XDR *, param*);
+#elif __STDC__
+extern  bool_t xdr_param(XDR *, param*);
+#else /* Old Style C */
+bool_t xdr_param();
+#endif /* Old Style C */
+
+
+#ifdef __cplusplus
+extern "C" bool_t xdr_param(XDR *, param*);
+#elif __STDC__
+extern  bool_t xdr_param(XDR *, param*);
+#else /* Old Style C */
+bool_t xdr_param();
+#endif /* Old Style C */
+
 
 #define PUBSUBPROG ((rpc_uint)0x20000011)
 #define PUBSUBVERS ((rpc_uint)1)
 
 #ifdef __cplusplus
 #define set_channel ((rpc_uint)1)
-extern "C" short * set_channel_1(topic *, CLIENT *);
-extern "C" short * set_channel_1_svc(topic *, struct svc_req *);
+extern "C" short * set_channel_1(param *, CLIENT *);
+extern "C" short * set_channel_1_svc(param *, struct svc_req *);
 #define subscribe ((rpc_uint)2)
-extern "C" short * subscribe_1(void *, CLIENT *);
-extern "C" short * subscribe_1_svc(void *, struct svc_req *);
+extern "C" short * subscribe_1(param *, CLIENT *);
+extern "C" short * subscribe_1_svc(param *, struct svc_req *);
 #define unsubscribe ((rpc_uint)3)
-extern "C" short * unsubscribe_1(void *, CLIENT *);
-extern "C" short * unsubscribe_1_svc(void *, struct svc_req *);
+extern "C" short * unsubscribe_1(param *, CLIENT *);
+extern "C" short * unsubscribe_1_svc(param *, struct svc_req *);
 #define publish ((rpc_uint)4)
-extern "C" short * publish_1(message *, CLIENT *);
-extern "C" short * publish_1_svc(message *, struct svc_req *);
+extern "C" short * publish_1(param *, CLIENT *);
+extern "C" short * publish_1_svc(param *, struct svc_req *);
+#define get_session ((rpc_uint)5)
+extern "C" sessionid * get_session_1(user *, CLIENT *);
+extern "C" sessionid * get_session_1_svc(user *, struct svc_req *);
+#define validate ((rpc_uint)6)
+extern "C" short * validate_1(param *, CLIENT *);
+extern "C" short * validate_1_svc(param *, struct svc_req *);
+#define invalidate ((rpc_uint)7)
+extern "C" short * invalidate_1(sessionid *, CLIENT *);
+extern "C" short * invalidate_1_svc(sessionid *, struct svc_req *);
 
 #elif __STDC__
 #define set_channel ((rpc_uint)1)
-extern  short * set_channel_1(topic *, CLIENT *);
-extern  short * set_channel_1_svc(topic *, struct svc_req *);
+extern  short * set_channel_1(param *, CLIENT *);
+extern  short * set_channel_1_svc(param *, struct svc_req *);
 #define subscribe ((rpc_uint)2)
-extern  short * subscribe_1(void *, CLIENT *);
-extern  short * subscribe_1_svc(void *, struct svc_req *);
+extern  short * subscribe_1(param *, CLIENT *);
+extern  short * subscribe_1_svc(param *, struct svc_req *);
 #define unsubscribe ((rpc_uint)3)
-extern  short * unsubscribe_1(void *, CLIENT *);
-extern  short * unsubscribe_1_svc(void *, struct svc_req *);
+extern  short * unsubscribe_1(param *, CLIENT *);
+extern  short * unsubscribe_1_svc(param *, struct svc_req *);
 #define publish ((rpc_uint)4)
-extern  short * publish_1(message *, CLIENT *);
-extern  short * publish_1_svc(message *, struct svc_req *);
+extern  short * publish_1(param *, CLIENT *);
+extern  short * publish_1_svc(param *, struct svc_req *);
+#define get_session ((rpc_uint)5)
+extern  sessionid * get_session_1(user *, CLIENT *);
+extern  sessionid * get_session_1_svc(user *, struct svc_req *);
+#define validate ((rpc_uint)6)
+extern  short * validate_1(param *, CLIENT *);
+extern  short * validate_1_svc(param *, struct svc_req *);
+#define invalidate ((rpc_uint)7)
+extern  short * invalidate_1(sessionid *, CLIENT *);
+extern  short * invalidate_1_svc(sessionid *, struct svc_req *);
 
 #else /* Old Style C */
 #define set_channel ((rpc_uint)1)
@@ -77,6 +168,15 @@ extern  short * unsubscribe_1_svc();
 #define publish ((rpc_uint)4)
 extern  short * publish_1();
 extern  short * publish_1_svc();
+#define get_session ((rpc_uint)5)
+extern  sessionid * get_session_1();
+extern  sessionid * get_session_1_svc();
+#define validate ((rpc_uint)6)
+extern  short * validate_1();
+extern  short * validate_1_svc();
+#define invalidate ((rpc_uint)7)
+extern  short * invalidate_1();
+extern  short * invalidate_1_svc();
 #endif /* Old Style C */
 
 #endif /* !_PUB_SUB_H_RPCGEN */

@@ -24,6 +24,8 @@ extern "C" {
 #define CANNOT_UNREGISTER           3
 #define CANNOT_SET_TOPIC            4
 #define UNKNOWN_ERROR               5
+#define UNKNOWN_USER                6
+#define AUTH_FAILURE                7
 
 static char* PUB_SUB_RET_CODE[] = {
  "Ok.",                         /* OK                        */

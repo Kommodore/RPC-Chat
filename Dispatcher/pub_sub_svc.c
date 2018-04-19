@@ -71,8 +71,13 @@ pubsubprog_1(rqstp, transp)
 	SVCXPRT *transp;
 {
 	union {
-		topic set_channel_1_arg;
-		message publish_1_arg;
+		param set_channel_1_arg;
+		param subscribe_1_arg;
+		param unsubscribe_1_arg;
+		param publish_1_arg;
+		user get_session_1_arg;
+		param validate_1_arg;
+		sessionid invalidate_1_arg;
 	} argument;
 	char *result;
 	bool_t (*xdr_argument)(), (*xdr_result)();
@@ -86,27 +91,45 @@ pubsubprog_1(rqstp, transp)
 		return;
 
 	case set_channel:
-		xdr_argument = xdr_topic;
+		xdr_argument = xdr_param;
 		xdr_result = xdr_short;
 		local = (char *(*)()) set_channel_1_svc;
 		break;
 
 	case subscribe:
-		xdr_argument = xdr_void;
+		xdr_argument = xdr_param;
 		xdr_result = xdr_short;
 		local = (char *(*)()) subscribe_1_svc;
 		break;
 
 	case unsubscribe:
-		xdr_argument = xdr_void;
+		xdr_argument = xdr_param;
 		xdr_result = xdr_short;
 		local = (char *(*)()) unsubscribe_1_svc;
 		break;
 
 	case publish:
-		xdr_argument = xdr_message;
+		xdr_argument = xdr_param;
 		xdr_result = xdr_short;
 		local = (char *(*)()) publish_1_svc;
+		break;
+
+	case get_session:
+		xdr_argument = xdr_user;
+		xdr_result = xdr_sessionid;
+		local = (char *(*)()) get_session_1_svc;
+		break;
+
+	case validate:
+		xdr_argument = xdr_param;
+		xdr_result = xdr_short;
+		local = (char *(*)()) validate_1_svc;
+		break;
+
+	case invalidate:
+		xdr_argument = xdr_sessionid;
+		xdr_result = xdr_short;
+		local = (char *(*)()) invalidate_1_svc;
 		break;
 
 	default:

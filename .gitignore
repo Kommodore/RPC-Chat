@@ -5,3 +5,8 @@
 .DS_Store
 .gitattributes
 .git/
+
+**/pub_sub*
+
+!**/pub_sub.x
+!**/pub_sub_deliv.x
