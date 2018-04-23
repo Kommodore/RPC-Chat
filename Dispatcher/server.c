@@ -43,6 +43,28 @@ Subscriber* find_subscriber(char* client_addr){
     return NULL;
 }
 
+short validate_hash(param *auth_data, char *ip_addr){
+    char hash[MAX_HASH_DIGEST_LENGTH];
+    Subscriber* curr_subscriber = find_subscriber(ip_addr);
+
+    if(curr_subscriber == NULL){
+        return AUTH_FAILURE;
+    } else {
+        if(auth_data->arg.topic_or_message == 0){
+            sprintf(hash, "%d;%s;%s", curr_subscriber->session_id, auth_data->arg.argument_u.t, curr_subscriber->credentials);
+        } else {
+            sprintf(hash, "%d;%s;%s", curr_subscriber->session_id, auth_data->arg.argument_u.m, curr_subscriber->credentials);
+        }
+
+        printf("Created hash %s from %s\n", auth_data->hash, hash);
+        if(strcmp(hash_sha(hash), auth_data->hash) != 0){
+            return AUTH_FAILURE;
+        } else {
+            return OK;
+        }
+    }
+}
+
 /**
  * Den Channel eines Subscribers wechseln.
  *
@@ -54,13 +76,12 @@ short * set_channel_1_svc(param *param, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
     char client_addr[INET6_ADDRSTRLEN];
     Subscriber *client;
-    topic topic = param->arg.argument_u.t;
 
     strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
     if((client = find_subscriber(client_addr)) != NULL){
-        if(client->authenticated == 1 && validate_1_svc(param, req) == OK){
-            client->topic = strdup(topic);
+        if(client->authenticated == 1 && validate_hash(param, client_addr) == OK){
+            client->topic = strdup(param->arg.argument_u.t);
             printf("Topic set to %s for %s\n", client->topic, client_addr);
         } else {
             printf("User not authenticated");
@@ -81,51 +102,51 @@ sessionid * get_session_1_svc(user *argp, struct svc_req * req){
     }
 
     for(int i = 0; i < MAX_HASH_DIGEST_LENGTH; i++){
-        if(strcmp(GLOB_hash_digest[i].user, *argp) == 0){
+        if(GLOB_hash_digest[i].user == NULL){
+            session_id = UNKNOWN_USER;
+            break;
+        } else if(strcmp(GLOB_hash_digest[i].user, *argp) == 0){
             char client_addr[INET6_ADDRSTRLEN];
-            Subscriber* new_subscriber = malloc(sizeof(Subscriber));
-
             strcpy(client_addr, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
+            Subscriber* new_subscriber = find_subscriber(client_addr);
 
             if(new_subscriber == NULL){
-                session_id = CANNOT_REGISTER;
-                printf("Couldn't allocate memory for new subscriber.\n");
-            } else {
-                if(find_subscriber(client_addr) == NULL){ // Wenn Subscriber noch nicht existiert einfügen
-                    // Struct erstellen
-                    memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
-                    strcpy(new_subscriber->client_addr, client_addr);
-                    new_subscriber->next = NULL;
-                    new_subscriber->topic = NULL;
-                    new_subscriber->authenticated = 0;
-                    new_subscriber->session_id = clock();
-                    strcpy(new_subscriber->credentials, GLOB_hash_digest[i].hash);
+                new_subscriber = malloc(sizeof(Subscriber));
 
-                    // Ans Ende packen
-                    if(subscriber_list ==  NULL) {
-                        subscriber_list = new_subscriber;
-                        printf("Subscribed %s\n", client_addr);
-                    } else {
-                        Subscriber* element = subscriber_list;
-                        while(element->next != NULL){
-                            element = element->next;
-                        }
-                        element->next = new_subscriber;
-                        printf("Session created for %s with id %d\n", client_addr, new_subscriber->session_id);
-                        session_id = new_subscriber->session_id;
-                    }
-                } else {
-                    session_id = CLIENT_ALREADY_REGISTERED;
-                    printf("Session already open\n");
-                    free(new_subscriber);
+                if(new_subscriber == NULL){
+                    session_id = CANNOT_REGISTER;
+                    printf("Couldn't allocate memory for new subscriber.\n");
+                    return &session_id;
                 }
+
+                // Ans Ende packen
+                if(subscriber_list ==  NULL) {
+                    subscriber_list = new_subscriber;
+                } else {
+                    Subscriber* element = subscriber_list;
+                    while(element->next != NULL){
+                        element = element->next;
+                    }
+                    element->next = new_subscriber;
+                }
+                new_subscriber->next = NULL;
             }
 
-            return &session_id;
+            // Struct erstellen
+            memset(new_subscriber->client_addr, '\0', INET6_ADDRSTRLEN);
+            strcpy(new_subscriber->client_addr, client_addr);
+            new_subscriber->topic = NULL;
+            new_subscriber->authenticated = 0;
+            new_subscriber->session_id = clock();
+            new_subscriber->credentials = strdup(GLOB_hash_digest[i].hash);
+
+            printf("Session created for %s with id %d\n", client_addr, new_subscriber->session_id);
+
+            session_id = new_subscriber->session_id;
+            break;
         }
     }
 
-    session_id = UNKNOWN_USER;
     return &session_id;
 }
 
@@ -166,15 +187,9 @@ short * invalidate_1_svc(sessionid *argp, struct svc_req *req){
 }
 
 short * validate_1_svc(param *argp, struct svc_req * req){
-    static short return_code = OK; // Static damit nicht abgeräumt
-    char hash[MAX_HASH_DIGEST_LENGTH];
-    Subscriber* curr_subscriber = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
+    static short return_code; // Static damit nicht abgeräumt
 
-    sprintf(hash, "%s;%s;%s", curr_subscriber->session_id, argp->arg.argument_u.t, curr_subscriber->credentials);
-
-    if(strcmp(hash_sha(hash), argp->hash) != 0){
-        return_code = AUTH_FAILURE;
-    }
+    return_code = validate_hash(argp, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
     return &return_code;
 }
@@ -189,7 +204,7 @@ short * validate_1_svc(param *argp, struct svc_req * req){
 short * subscribe_1_svc(param *param, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
 
-    if(validate_1_svc(param, req) == OK){
+    if(validate_hash(param, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr)) == OK){
         find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->authenticated = 1;
     }
 
@@ -206,7 +221,7 @@ short * subscribe_1_svc(param *param, struct svc_req *req){
 short * unsubscribe_1_svc(param *param, struct svc_req *req){
     static short return_code = OK; // Static damit nicht abgeräumt
 
-    if(validate_1_svc(param, req) == OK){
+    if(validate_hash(param, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr)) == OK){
         find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr))->authenticated = 0;
     }
 
@@ -226,7 +241,7 @@ short * publish_1_svc(param *param, struct svc_req *req){
     CLIENT *cl;
     Subscriber* caller = find_subscriber(inet_ntoa(req->rq_xprt->xp_raddr.sin_addr));
 
-    if(caller->authenticated == 1 && validate_1_svc(param, req) == OK){
+    if(caller->authenticated == 1 && validate_hash(param, inet_ntoa(req->rq_xprt->xp_raddr.sin_addr)) == OK){
         char topic[TOPLEN];
         char* cl_topic = caller->topic;
         if(cl_topic != NULL){
@@ -242,7 +257,7 @@ short * publish_1_svc(param *param, struct svc_req *req){
         Subscriber *element = subscriber_list;
 
         while(element != NULL){
-            if((element->authenticated == 1) && (element->topic == NULL || strlen(topic) == 0 || strcmp(element->topic, topic) == 0)){
+            if((element->authenticated == 1) && ((element->topic == NULL && strlen(topic) == 0) || strlen(topic) == 0 || strcmp(element->topic, topic) == 0)){
                 /*
                  * Erzeugung eines Client Handles.
                  * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
