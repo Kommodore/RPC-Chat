@@ -257,7 +257,7 @@ short * publish_1_svc(param *param, struct svc_req *req){
         Subscriber *element = subscriber_list;
 
         while(element != NULL){
-            if((element->authenticated == 1) && ((element->topic == NULL && strlen(topic) == 0) || strlen(topic) == 0 || strcmp(element->topic, topic) == 0)){
+            if((element->authenticated == 1) && ((element->topic == NULL && strlen(topic) == 0) || strlen(topic) == 0 || (element->next != NULL && strcmp(element->topic, topic) == 0))){
                 /*
                  * Erzeugung eines Client Handles.
                  * Fuer asynchrone One-way-Aufrufe wird hier TCP eingestellt,
